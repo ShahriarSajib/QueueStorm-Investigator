@@ -58,3 +58,23 @@ class TicketResponse(BaseModel):
     human_review_required: bool
     confidence: Optional[float] = None
     reason_codes: Optional[list[str]] = None
+
+
+class HistoryEntryResponse(BaseModel):
+    ticket_id: str
+    request: TicketRequest
+    response: TicketResponse
+    analyzed_at: str
+
+
+class HistoryListResponse(BaseModel):
+    total: int
+    entries: list[HistoryEntryResponse]
+
+
+class HistoryStatsResponse(BaseModel):
+    total: int
+    by_case_type: dict[str, int]
+    by_severity: dict[str, int]
+    by_department: dict[str, int]
+    by_verdict: dict[str, int]

@@ -10,13 +10,20 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .engine import run_engine
+from . import history
 from .llm import generate_texts
-from .models import TicketRequest, TicketResponse
+from .models import (
+    HistoryEntryResponse,
+    HistoryListResponse,
+    HistoryStatsResponse,
+    TicketRequest,
+    TicketResponse,
+)
 from .safety import validate_customer_reply, validate_next_action
 
 logging.basicConfig(level=logging.INFO)
@@ -72,7 +79,7 @@ async def analyze_ticket(ticket: TicketRequest):
         safe_reply = validate_customer_reply(texts["customer_reply"], ticket.language)
         safe_action = validate_next_action(texts["recommended_next_action"])
 
-        return TicketResponse(
+        response = TicketResponse(
             ticket_id=ticket.ticket_id,
             relevant_transaction_id=engine_result.relevant_transaction_id,
             evidence_verdict=engine_result.evidence_verdict,
@@ -87,8 +94,62 @@ async def analyze_ticket(ticket: TicketRequest):
             reason_codes=engine_result.reason_codes,
         )
 
+        # Record to history
+        history.append(ticket, response)
+
+        return response
+
     except HTTPException:
         raise
     except Exception as exc:
         logger.error("analyze_ticket error: %s", exc)
         raise HTTPException(status_code=500, detail="Internal error processing ticket")
+
+
+# ---------------------------------------------------------------------------
+# History endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/history", response_model=HistoryListResponse)
+async def list_history(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    case_type: str | None = Query(None),
+    severity: str | None = Query(None),
+    department: str | None = Query(None),
+    verdict: str | None = Query(None),
+):
+    entries = history.list_entries(
+        limit=limit,
+        offset=offset,
+        case_type=case_type,
+        severity=severity,
+        department=department,
+        verdict=verdict,
+    )
+    return HistoryListResponse(
+        total=history.count(case_type=case_type, severity=severity),
+        entries=[HistoryEntryResponse(**e) for e in entries],
+    )
+
+
+@app.get("/history/stats", response_model=HistoryStatsResponse)
+async def history_stats():
+    return history.stats()
+
+
+@app.get("/history/{ticket_id}", response_model=HistoryEntryResponse)
+async def get_history_entry(ticket_id: str):
+    entry = history.get_entry(ticket_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    return HistoryEntryResponse(**entry)
+
+
+@app.delete("/history/{ticket_id}")
+async def delete_history_entry(ticket_id: str):
+    deleted = history.delete_entry(ticket_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    return {"status": "deleted", "ticket_id": ticket_id}
