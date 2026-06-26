@@ -11,7 +11,7 @@ import requests
 import streamlit as st
 
 
-DEFAULT_API_URL = os.getenv("QUEUESTORM_API_URL", "http://127.0.0.1:8000")
+DEFAULT_API_URL = "https://queuestorm-investigator-wcsy.onrender.com"
 SITE_NAME = "QueueStorm Investigator"
 SITE_TAGLINE = "SupportOps copilot · Digital Finance"
 
