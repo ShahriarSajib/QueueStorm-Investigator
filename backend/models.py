@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 
 
@@ -18,7 +18,7 @@ class TicketRequest(BaseModel):
     channel: Optional[Literal["in_app_chat", "call_center", "email", "merchant_portal", "field_agent"]] = None
     user_type: Optional[Literal["customer", "merchant", "agent", "unknown"]] = None
     campaign_context: Optional[str] = None
-    transaction_history: Optional[list[TransactionEntry]] = []
+    transaction_history: list[TransactionEntry] = Field(default_factory=list)
     metadata: Optional[dict] = None
 
     @field_validator("complaint")
